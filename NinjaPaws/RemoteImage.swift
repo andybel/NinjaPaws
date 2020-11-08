@@ -31,7 +31,9 @@ struct RemoteImage: View {
             }
             
             guard let parsedURL = URL(string: url) else {
-                fatalError("Invalid URL: \(url)")
+                print("Invalid img URL: \(url)")
+                state = .failure
+                return
             }
             
             URLSession.shared.dataTask(with: parsedURL) { data, response, error in

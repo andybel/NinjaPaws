@@ -10,7 +10,7 @@ import SwiftUI
 
 class CatPicsDataSource: ObservableObject {
     
-    @Published var items = [CatPic]()
+    @Published var items = [AnimalPic]()
     @Published var isLoading = false
     
     @State private var requests = Set<AnyCancellable>()
@@ -22,7 +22,7 @@ class CatPicsDataSource: ObservableObject {
         loadMoreContent()
     }
     
-    func loadMoreContentIfNeeded(currentItem item: CatPic?) {
+    func loadMoreContentIfNeeded(currentItem item: AnimalPic?) {
         guard let item = item else {
             loadMoreContent()
             return
@@ -43,11 +43,12 @@ class CatPicsDataSource: ObservableObject {
         }
         isLoading = true
     
-        let url = URL(string: "https://api.thecatapi.com/v1/images/search?page=\(currentPage)&limit=10&order=desc")!
+//        let url = URL(string: "https://api.thecatapi.com/v1/images/search?page=\(currentPage)&limit=10&order=desc")!
+        let url = URL(string: "https://api.thedogapi.com/v1/images/search?page=\(currentPage)&limit=10&order=desc")!
         
         URLSession.shared.dataTaskPublisher(for: url)
               .map(\.data)
-              .decode(type: [CatPic].self, decoder: JSONDecoder())
+              .decode(type: [AnimalPic].self, decoder: JSONDecoder())
               .receive(on: DispatchQueue.main)
               .handleEvents(receiveOutput: { response in
                 //self.canLoadMorePages = response.hasMorePages
@@ -60,25 +61,60 @@ class CatPicsDataSource: ObservableObject {
               .catch({ _ in Just(self.items) })
             .assign(to: &$items)
     }
+
+}
+
+enum NPError: Error {
+    case networkError(Error)
+    case missingData
+    case decoderError
+}
+
+class AnimalPicsLoader: ObservableObject {
     
-    func fetch<T: Decodable>(_ url: URL, defaultValue: T, completion: @escaping (T) -> Void) {
+    func fetch<T: Decodable>(_ url: URL, default: T, completion: @escaping (Result<T, Error>) -> Void) {
         
-        let decoder = JSONDecoder()
+        URLSession.shared.dataTask(with: url) { (data, _, error) in
         
-        print("fetch: \(url.absoluteString)")
-        
-        URLSession.shared.dataTaskPublisher(for: url)
-            .retry(1)
-            .map(\.data)
-            .decode(type: T.self, decoder: decoder)
-            //.replaceError(with: defaultValue)
-            .receive(on: DispatchQueue.main)
-            .sink(receiveCompletion: {
-                print("We completed! - \($0)")
-            }, receiveValue: {
-                print("here?")
-                completion($0)
-            })
-            .store(in: &requests)
+            guard error == nil else {
+                completion(.failure(NPError.networkError(error!)))
+                return
+            }
+            guard let data = data else {
+                completion(.failure(NPError.missingData))
+                return
+            }
+            
+            let decoder = JSONDecoder()
+            do {
+                
+                let result = try decoder.decode(T.self, from: data)
+                completion(.success(result))
+                
+            } catch {
+                completion(.failure(NPError.decoderError))
+            }
+        }.resume()
     }
+    
+    // TODO: Combine version
+//    @Published var items = [AnimalPic]()
+//
+//    @State private var requests = Set<AnyCancellable>()
+//
+//    func fetch<T: Decodable>(_ url: URL, defaultValue: T, completion: @escaping (T) -> Void) {
+//
+//        let decoder = JSONDecoder()
+//
+//        print("fetch: \(url.absoluteString)")
+//
+//        URLSession.shared.dataTaskPublisher(for: url)
+//            .retry(1)
+//            .map(\.data)
+//            .decode(type: T.self, decoder: decoder)
+//            .replaceError(with: defaultValue)
+//            .receive(on: DispatchQueue.main)
+//            .sink(receiveValue: completion)
+//            .store(in: &requests)
+//    }
 }
